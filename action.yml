@@ -1,0 +1,63 @@
+name: 'dns-sentinel'
+description: 'Audit DNS and email security: SPF, DMARC, DKIM, MX, MTA-STS, CAA, DNSSEC, dangling CNAMEs and subdomain takeover'
+author: 'Louis Wright'
+branding: { icon: 'shield', color: 'purple' }
+inputs:
+  domains: { description: 'Space-separated domains to audit', required: true }
+  subdomains: { description: 'Space-separated subdomains to check for dangling CNAMEs (e.g. "www docs status")', default: '' }
+  subdomains-file: { description: 'File with subdomains, one per line', default: '' }
+  dkim-selectors: { description: 'Comma-separated DKIM selectors', default: '' }
+  checks: { description: 'Comma-separated checks to run (default: all except axfr)', default: '' }
+  axfr: { description: 'Attempt zone transfers (true/false)', default: 'false' }
+  doh: { description: 'DoH endpoint for all lookups (empty = system resolver)', default: '' }
+  fail-on: { description: 'critical | high | medium | low | info | none', default: 'high' }
+  config: { description: 'Path to JSON config file', default: '' }
+  sarif: { description: 'Write SARIF to this path', default: '' }
+  json: { description: 'Write JSON report to this path', default: '' }
+  job-summary: { description: 'Write the Markdown report to the job summary (true/false)', default: 'true' }
+  args: { description: 'Extra CLI arguments', default: '' }
+outputs:
+  markdown-file: { description: 'Path of the Markdown report', value: '${{ steps.run.outputs.markdown-file }}' }
+runs:
+  using: 'composite'
+  steps:
+    - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+      with: { node-version: '20' }
+    - id: run
+      shell: bash
+      env:
+        DS_DOMAINS: ${{ inputs.domains }}
+        DS_SUBDOMAINS: ${{ inputs.subdomains }}
+        DS_SUBFILE: ${{ inputs.subdomains-file }}
+        DS_DKIM: ${{ inputs.dkim-selectors }}
+        DS_CHECKS: ${{ inputs.checks }}
+        DS_AXFR: ${{ inputs.axfr }}
+        DS_DOH: ${{ inputs.doh }}
+        DS_FAIL_ON: ${{ inputs.fail-on }}
+        DS_CONFIG: ${{ inputs.config }}
+        DS_SARIF: ${{ inputs.sarif }}
+        DS_JSON: ${{ inputs.json }}
+        DS_SUMMARY: ${{ inputs.job-summary }}
+        DS_ARGS: ${{ inputs.args }}
+        DS_BIN: ${{ github.action_path }}/bin/dns-sentinel.js
+        FORCE_COLOR: '1'
+      run: |
+        md="$RUNNER_TEMP/dns-sentinel.md"
+        args=(--fail-on "$DS_FAIL_ON" --markdown "$md")
+        for s in $DS_SUBDOMAINS; do args+=(--subdomain "$s"); done
+        [ -n "$DS_SUBFILE" ] && args+=(--subdomains-file "$DS_SUBFILE")
+        [ -n "$DS_DKIM" ] && args+=(--dkim-selector "$DS_DKIM")
+        [ -n "$DS_CHECKS" ] && args+=(--checks "$DS_CHECKS")
+        [ "$DS_AXFR" = "true" ] && args+=(--axfr)
+        [ -n "$DS_DOH" ] && args+=(--doh "$DS_DOH")
+        [ -n "$DS_CONFIG" ] && args+=(--config "$DS_CONFIG")
+        [ -n "$DS_SARIF" ] && args+=(--sarif "$DS_SARIF")
+        [ -n "$DS_JSON" ] && args+=(--json "$DS_JSON")
+        set +e
+        # shellcheck disable=SC2086
+        node "$DS_BIN" $DS_DOMAINS "${args[@]}" $DS_ARGS
+        code=$?
+        set -e
+        echo "markdown-file=$md" >> "$GITHUB_OUTPUT"
+        if [ "$DS_SUMMARY" = "true" ] && [ -f "$md" ]; then cat "$md" >> "$GITHUB_STEP_SUMMARY"; fi
+        exit $code

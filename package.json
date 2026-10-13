@@ -1,0 +1,62 @@
+{
+  "name": "dns-sentinel",
+  "version": "0.0.0",
+  "description": "DNS and email security auditor: SPF (10-lookup limit, +all, ptr), DMARC, DKIM key strength, MX/null MX, MTA-STS, TLS-RPT, CAA, DNSSEC via DoH, dangling CNAME and subdomain takeover, wildcards and AXFR, with a fix for each. Text, JSON, SARIF, Markdown; GitHub Action. Zero deps.",
+  "type": "module",
+  "main": "./src/index.js",
+  "types": "./src/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.d.ts",
+      "default": "./src/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "bin": {
+    "dns-sentinel": "bin/dns-sentinel.js"
+  },
+  "files": [
+    "src",
+    "bin",
+    "action.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js"
+  },
+  "keywords": [
+    "dns",
+    "dns-security",
+    "email-security",
+    "spf",
+    "dmarc",
+    "dkim",
+    "mta-sts",
+    "tls-rpt",
+    "caa",
+    "dnssec",
+    "subdomain-takeover",
+    "dangling-cname",
+    "doh",
+    "security",
+    "sarif",
+    "cli",
+    "github-action",
+    "devsecops"
+  ],
+  "author": "Louis Wright <hello@louiswright.co.uk> (https://github.com/MrLouisWright)",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MrLouisWright/dns-sentinel.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MrLouisWright/dns-sentinel/issues"
+  },
+  "homepage": "https://github.com/MrLouisWright/dns-sentinel#readme"
+}
