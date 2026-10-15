@@ -1,5 +1,9 @@
 # Changelog
 
+## 1.0.1 - 2026-10-15
+
+- First release with the features and packaging listed under 1.0.0 below. The earlier npm 1.0.0 was an older build without them.
+
 ## 1.0.0 (2026-10-15)
 
 ### Added before first publish

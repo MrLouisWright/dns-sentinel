@@ -1,6 +1,6 @@
 {
   "name": "dns-sentinel",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "DNS and email security auditor: SPF (10-lookup limit, +all, ptr), DMARC, DKIM key strength, MX/null MX, MTA-STS, TLS-RPT, CAA, DNSSEC via DoH, dangling CNAME and subdomain takeover, wildcards and AXFR, with a fix for each. Text, JSON, SARIF, Markdown; GitHub Action. Zero deps.",
   "keywords": [
     "dns",
