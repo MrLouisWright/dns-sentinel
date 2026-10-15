@@ -1,5 +1,7 @@
 # dns-sentinel
 
+[![npm version](https://img.shields.io/npm/v/dns-sentinel.svg)](https://www.npmjs.com/package/dns-sentinel) [![CI](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml) [![Node](https://img.shields.io/node/v/dns-sentinel.svg)](https://nodejs.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 > Audit your domains' DNS and email security before attackers or spammers find the gaps.
 
 `dns-sentinel` checks SPF, DMARC, DKIM, MX / null MX, MTA-STS, TLS-RPT, CAA and DNSSEC. It also finds dangling CNAMEs and subdomain takeovers, wildcard records and open zone transfers. Every finding comes with a severity and a **concrete fix**, usually the exact DNS record to publish.
