@@ -3,6 +3,7 @@ import { isIP } from 'node:net';
 import { orgDomain, parseTags, withTimeout } from './util.js';
 import { matchService } from './takeover.js';
 import { attemptAxfr } from './resolvers.js';
+import { detectProviders } from './mail-extra.js';
 
 const OK = (r) => r.status === 'NOERROR';
 const FAILED = (r) => ['SERVFAIL', 'TIMEOUT', 'ERROR', 'REFUSED'].includes(r.status);
@@ -87,6 +88,7 @@ export async function checkSpf(ctx, d) {
   await countLookups(ctx, d.domain, state);
   d.summary.spfLookups = state.lookups;
   if (state.lookups > 10) ctx.add(d, 'spf-too-many-lookups', d.domain, `SPF needs ${state.lookups > 15 ? 'more than 15' : state.lookups} DNS lookups (limit 10); receivers return permerror and SPF fails`, 'Remove unused includes, replace `a`/`mx` with `ip4:`/`ip6:` ranges, or flatten nested includes. Keep the total at 10 or fewer.', undefined, rec);
+  else if (state.lookups >= 8) ctx.add(d, 'spf-lookups-near-limit', d.domain, `SPF uses ${state.lookups} of its 10 DNS lookups; one more include from a provider breaks it`, 'Remove unused includes or replace a/mx with ip4:/ip6: before a provider adds a nested include.', undefined, rec);
   if (state.voids > 2) ctx.add(d, 'spf-void-lookups', d.domain, `SPF has ${state.voids} void lookups (limit 2)`, 'Remove mechanisms that point to names with no records.', undefined, rec);
   if (state.ptr.length) ctx.add(d, 'spf-ptr', d.domain, `SPF uses the "ptr" mechanism (${state.ptr.join(', ')}), which is slow, unreliable and deprecated by RFC 7208`, 'Replace `ptr` with explicit `ip4:`/`ip6:` or `include:` terms.', undefined, rec);
   for (const b of state.brokenIncludes) ctx.add(d, 'spf-invalid', d.domain, `include:${b} has no SPF record, which is a permerror`, `Remove \`include:${b}\` or fix the provider record.`, undefined, rec);
@@ -141,7 +143,9 @@ export function dkimKeyBits(p, k = 'rsa') {
 
 export async function checkDkim(ctx, d) {
   const explicit = ctx.opts.dkimSelectors || [];
-  const selectors = [...new Set([...explicit, ...(ctx.opts.dkimCommon ? COMMON_SELECTORS : [])])];
+  const providers = ctx.opts.dkimCommon || ctx.opts.dkimProviders ? detectProviders((d.mx?.answers || []).map((m) => m.exchange || ''), (d.summary.spf || []).join(' ')) : [];
+  if (providers.length) d.summary.mailProviders = providers.map((p) => p.name);
+  const selectors = [...new Set([...explicit, ...providers.flatMap((p) => p.selectors), ...(ctx.opts.dkimCommon ? COMMON_SELECTORS : [])])];
   d.summary.dkim = {};
   if (!selectors.length) { d.summary.dkim = null; return; }
   let found = 0;

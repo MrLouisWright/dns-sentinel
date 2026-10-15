@@ -1,6 +1,6 @@
 # dns-sentinel
 
-[![npm version](https://img.shields.io/npm/v/dns-sentinel.svg)](https://www.npmjs.com/package/dns-sentinel) [![CI](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml) [![Node](https://img.shields.io/node/v/dns-sentinel.svg)](https://nodejs.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![npm version](https://img.shields.io/npm/v/dns-sentinel.svg)](https://www.npmjs.com/package/dns-sentinel) [![CI](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml/badge.svg)](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml) [![Node](https://img.shields.io/node/v/dns-sentinel.svg)](https://nodejs.org) [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE) [![provenance](https://img.shields.io/badge/npm-provenance-blue)](https://docs.npmjs.com/generating-provenance-statements)
 
 > Audit your domains' DNS and email security before attackers or spammers find the gaps.
 
@@ -231,6 +231,34 @@ Free to use under MIT, no attribution required. If dns-sentinel helps you, a lin
 ```markdown
 [![Built with dns-sentinel by Louis Wright](https://img.shields.io/badge/built%20with-dns--sentinel-blue)](https://louiswright.co.uk)
 ```
+
+## BIMI, provider DKIM selectors, baselines and DMARC reports
+
+```bash
+npx dns-sentinel example.com --dkim-providers              # try selectors of providers seen in MX/SPF
+npx dns-sentinel example.com --save-baseline dns.json      # snapshot today's records
+npx dns-sentinel example.com --baseline dns.json           # later: report changed records / SPF lookup growth
+npx dns-sentinel dmarc-report reports/*.xml.gz reports/*.zip   # summarise RUA aggregate reports
+```
+
+- **BIMI**: `default._bimi.<domain>` is checked for syntax, an `https://` SVG logo and a VMC/CMC certificate (`a=`), and DMARC must be at `p=quarantine`/`reject` with pct=100. A domain without BIMI is fine.
+- **DKIM selectors by provider**: Google Workspace (`google`), Microsoft 365 (`selector1`/`selector2`), SendGrid (`s1`/`s2`), Mailchimp (`k1`–`k3`), Amazon SES, Mailgun, Postmark, Zoho, Fastmail, Proton and more are recognised from MX and SPF includes.
+- **Baselines**: a JSON snapshot of SPF, DMARC, MX, MTA-STS, TLS-RPT, CAA, DKIM and BIMI. Any difference is reported as `record-changed`. `spf-lookups-increased` catches a provider quietly adding nested includes, and `spf-lookups-near-limit` warns at 8 of 10 lookups.
+- **DMARC aggregate reports**: `.xml`, `.xml.gz` and `.zip` attachments are parsed and summarised as messages, DMARC pass rate and failing source IPs. In code, use `parseDmarcReport(buffer)` and `summarizeDmarcReports([...])`.
+- **ARC**: `checkArcHeaders(headers)` validates an ARC chain from raw message headers (RFC 8617).
+
+HSTS belongs to header-sentinel, and TLS handshakes and certificates to tls-sentinel; dns-sentinel stays with DNS records.
+
+## Module formats and types
+
+Ships ESM (`import`) and a bundled CommonJS build (`require`), with TypeScript declarations generated from the source:
+
+```js
+import * as lib from 'dns-sentinel';      // ESM
+const lib = require('dns-sentinel');      // CommonJS
+```
+
+Tests live in [`test/`](test) and run on Node 18, 20 and 22 in [GitHub Actions](https://github.com/MrLouisWright/dns-sentinel/actions/workflows/ci.yml), including a require+import check. Releases are published with `npm publish --provenance`.
 
 ## License
 

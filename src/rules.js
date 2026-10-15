@@ -19,6 +19,12 @@ export const RULES = {
   'dmarc-no-rua': { severity: 'low', title: 'DMARC without aggregate reports (rua)', group: 'dmarc' },
   'dmarc-pct': { severity: 'medium', title: 'DMARC pct below 100', group: 'dmarc' },
   'dmarc-weak-subdomain': { severity: 'medium', title: 'DMARC subdomain policy weaker than the domain policy', group: 'dmarc' },
+  'spf-lookups-near-limit': { severity: 'low', title: 'SPF uses 8-10 of its 10 DNS lookups', group: 'spf' },
+  'spf-lookups-increased': { severity: 'low', title: 'SPF lookups grew since the baseline (an include changed)', group: 'baseline' },
+  'record-changed': { severity: 'medium', title: 'A record differs from the baseline', group: 'baseline' },
+  'bimi-invalid': { severity: 'medium', title: 'Invalid BIMI record', group: 'bimi' },
+  'bimi-dmarc-not-enforced': { severity: 'low', title: 'BIMI published but DMARC is not enforcing at pct=100', group: 'bimi' },
+  'bimi-no-certificate': { severity: 'info', title: 'BIMI without a VMC/CMC certificate (a=)', group: 'bimi' },
   'dkim-missing': { severity: 'medium', title: 'DKIM selector has no key', group: 'dkim' },
   'dkim-weak-key': { severity: 'medium', title: 'Weak DKIM key', group: 'dkim' },
   'dkim-revoked': { severity: 'low', title: 'Revoked DKIM key (empty p=)', group: 'dkim' },
@@ -53,5 +59,5 @@ export const RULES = {
   'allow-expired': { severity: 'medium', title: 'Allowlist entry has expired', group: 'config' },
 };
 
-export const CHECKS = ['spf', 'dmarc', 'dkim', 'mx', 'mta-sts', 'tls-rpt', 'caa', 'dnssec', 'cname', 'wildcard', 'axfr'];
+export const CHECKS = ['spf', 'dmarc', 'dkim', 'bimi', 'mx', 'mta-sts', 'tls-rpt', 'caa', 'dnssec', 'cname', 'wildcard', 'axfr'];
 export const DEFAULT_CHECKS = CHECKS.filter((c) => c !== 'axfr');

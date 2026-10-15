@@ -13,7 +13,12 @@ jobs:
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with: { node-version: '${{ matrix.node }}' }
       - run: npm ci --ignore-scripts
+      - run: npm run build
       - run: npm test
+      - name: require+import check
+        run: |
+          node -e "require('dns-sentinel')"
+          node --input-type=module -e "await import('dns-sentinel')"
       - run: npm pack --dry-run
       - name: Smoke test CLI
         run: |

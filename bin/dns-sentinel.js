@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { auditDomains, exceeds, formatText, formatJson, formatSarif, formatMarkdown, SEVERITIES, RULES, CHECKS, ConfigError } from '../src/index.js';
+import { snapshot, parseDmarcReport, summarizeDmarcReports, auditDomains, exceeds, formatText, formatJson, formatSarif, formatMarkdown, SEVERITIES, RULES, CHECKS, ConfigError } from '../src/index.js';
 
 const pkg = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
 const HELP = `dns-sentinel ${pkg.version} — DNS and email security auditor
@@ -12,7 +12,10 @@ Checks (default: all except axfr)
       --checks <list>        Comma-separated: ${CHECKS.join(', ')}
       --skip <list>          Checks to skip
       --dkim-selector <s>    DKIM selector to test (repeatable or comma-separated)
-      --dkim-common          Also try ~30 common DKIM selectors
+      --dkim-common          Also try ~30 common DKIM selectors, plus those of providers detected from MX/SPF
+      --dkim-providers       Only try the selectors of providers detected from MX/SPF (Google, Microsoft 365, SendGrid…)
+      --baseline <file>      Compare with a saved snapshot: report changed records and SPF lookup growth
+      --save-baseline <file> Write a snapshot of this run (for --baseline next time)
   -s, --subdomain <name>     Subdomain to test for dangling/takeover CNAMEs (repeatable; "www" or "www.example.com")
       --subdomains-file <f>  File with subdomains, one per line
       --common-subdomains    Also test ~40 common subdomain names
@@ -33,6 +36,10 @@ Policy and output
       --no-color
   -v, --version / -h, --help
 
+DMARC aggregate reports
+  dns-sentinel dmarc-report <file.xml|.xml.gz|.zip...> [-f text|json]
+                             Summarise RUA reports: pass rate and sources failing DMARC
+
 Exit codes: 0 = passed, 1 = findings at or above --fail-on, 2 = usage error or a domain could not be checked.`;
 
 const list = (v) => (v || []).flatMap((x) => String(x).split(',')).map((x) => x.trim()).filter(Boolean);
@@ -46,7 +53,7 @@ async function main() {
   let a;
   try {
     a = parseArgs({ args: argv, allowPositionals: true, options: {
-      checks: { type: 'string' }, skip: { type: 'string' }, 'dkim-selector': { type: 'string', multiple: true }, 'dkim-common': { type: 'boolean' },
+      checks: { type: 'string' }, skip: { type: 'string' }, 'dkim-selector': { type: 'string', multiple: true }, 'dkim-common': { type: 'boolean' }, 'dkim-providers': { type: 'boolean' }, baseline: { type: 'string' }, 'save-baseline': { type: 'string' },
       subdomain: { type: 'string', short: 's', multiple: true }, 'subdomains-file': { type: 'string' }, 'common-subdomains': { type: 'boolean' },
       axfr: { type: 'boolean' }, 'no-http': { type: 'boolean' },
       resolver: { type: 'string', short: 'r', multiple: true }, doh: { type: 'string' }, 'dnssec-doh': { type: 'string' }, 'no-dnssec-doh': { type: 'boolean' }, timeout: { type: 'string' },
@@ -55,6 +62,21 @@ async function main() {
     } });
   } catch (e) { return usage(e.message); }
   const { values: o, positionals } = a;
+  if (positionals[0] === 'dmarc-report') {
+    const files = positionals.slice(1); if (!files.length) return usage('dmarc-report needs at least one report file');
+    const reps = [];
+    for (const f of files) { try { reps.push(parseDmarcReport(readFileSync(f))); } catch (e) { return usage(`${f}: ${e.message}`); } }
+    const sum = summarizeDmarcReports(reps);
+    if ((o.format || 'text') === 'json') process.stdout.write(JSON.stringify({ ...sum, reportsParsed: reps.map((r) => ({ orgName: r.orgName, reportId: r.reportId, begin: r.begin, end: r.end, policy: r.policy })) }, null, 2) + '\n');
+    else {
+      const lines = [`DMARC aggregate reports: ${sum.reports} report(s), ${sum.messages} message(s), ${sum.passRate ?? '-'}% passing DMARC`];
+      for (const r of reps) lines.push(`  ${r.orgName || '?'} ${r.begin?.slice(0, 10) || ''}..${r.end?.slice(0, 10) || ''} ${r.policy.domain || ''} p=${r.policy.p || '?'}`);
+      if (sum.failingSources.length) { lines.push('', 'Sources failing DMARC (neither aligned SPF nor DKIM passed):'); for (const x of sum.failingSources.slice(0, 50)) lines.push(`  ${String(x.fail).padStart(6)}  ${x.sourceIp}  From: ${x.headerFrom}  (${x.reporters.join(', ')})`); }
+      else lines.push('', 'No failing sources.');
+      process.stdout.write(lines.join('\n') + '\n');
+    }
+    return sum.failingSources.length && o['fail-on'] && o['fail-on'] !== 'none' ? 1 : 0;
+  }
   if (o.help) { process.stdout.write(HELP + '\n'); return 0; }
   if (o.version) { process.stdout.write(pkg.version + '\n'); return 0; }
   if (o['list-rules']) { for (const [id, r] of Object.entries(RULES)) process.stdout.write(`${id.padEnd(24)} ${r.severity.padEnd(9)} ${r.group.padEnd(9)} ${r.title}\n`); return 0; }
@@ -73,6 +95,9 @@ async function main() {
   if (checks) opts.checks = checks;
   opts.dkimSelectors = [...(cfg.dkimSelectors || []), ...list(o['dkim-selector'])];
   if (o['dkim-common']) opts.dkimCommon = true;
+  if (o['dkim-providers']) opts.dkimProviders = true;
+  const blFile = o.baseline || cfg.baseline;
+  if (blFile) { if (existsSync(blFile)) { try { opts.baseline = JSON.parse(readFileSync(blFile, 'utf8')); } catch (e) { return usage(`Cannot read baseline ${blFile}: ${e.message}`); } } else process.stderr.write(`dns-sentinel: baseline ${blFile} does not exist yet; use --save-baseline to create it\n`); }
   opts.subdomains = [...(cfg.subdomains || []), ...list(o.subdomain)];
   if (o['subdomains-file']) {
     try { opts.subdomains.push(...readFileSync(o['subdomains-file'] === '-' ? 0 : o['subdomains-file'], 'utf8').split(/\r?\n/).map((x) => x.trim()).filter((x) => x && !x.startsWith('#'))); } catch (e) { return usage(`Cannot read ${o['subdomains-file']}: ${e.message}`); }
@@ -97,6 +122,7 @@ async function main() {
   if (o.json) writeFileSync(o.json, formatJson(report));
   if (o.sarif) writeFileSync(o.sarif, formatSarif(report, { version: pkg.version }));
   if (o.markdown) writeFileSync(o.markdown, formatMarkdown(report, { failOn }));
+  if (o['save-baseline']) writeFileSync(o['save-baseline'], JSON.stringify(snapshot(report), null, 2) + '\n');
   if (report.domains.some((d) => d.fatal)) return 2;
   return exceeds(report, failOn) ? 1 : 0;
 }

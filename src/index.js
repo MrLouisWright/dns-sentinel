@@ -3,6 +3,10 @@ import { RULES, SEVERITIES, rank, CHECKS, DEFAULT_CHECKS } from './rules.js';
 import { normalise, orgDomain, globRe, parseTags } from './util.js';
 import * as C from './checks.js';
 import { SERVICES, matchService } from './takeover.js';
+import { checkBimi, parseBimi, checkArcHeaders, detectProviders, DKIM_PROVIDERS } from './mail-extra.js';
+import { snapshot, diffBaseline } from './baseline.js';
+import { parseDmarcReport, summarizeDmarcReports, unpackReport } from './dmarc-report.js';
+export { checkBimi, parseBimi, checkArcHeaders, detectProviders, DKIM_PROVIDERS, snapshot, diffBaseline, parseDmarcReport, summarizeDmarcReports, unpackReport };
 export { encodeQuery, decodeMessage, encodeResponse, TYPES } from './wire.js';
 export { formatText, formatJson, formatSarif, formatMarkdown } from './report.js';
 export { SystemResolver, DohResolver, WireResolver, MockResolver, attemptAxfr, wireQuery, RULES, SEVERITIES, CHECKS, DEFAULT_CHECKS, orgDomain, parseTags, SERVICES, matchService };
@@ -67,6 +71,7 @@ export async function auditDomains(domains, opts = {}) {
       await run('spf', C.checkSpf);
       await run('dmarc', C.checkDmarc);
       await run('dkim', C.checkDkim);
+      await run('bimi', checkBimi);
       await run('mta-sts', C.checkMtaSts);
       await run('tls-rpt', C.checkTlsRpt);
       await run('caa', C.checkCaa);
@@ -76,6 +81,14 @@ export async function auditDomains(domains, opts = {}) {
       await run('axfr', C.checkAxfr);
     }
     results.push(d);
+  }
+  if (opts.baseline) {
+    for (const ch of diffBaseline(opts.baseline, { domains: results })) {
+      const d = results.find((x) => x.domain === ch.domain);
+      const show = (v) => (v === null || v === undefined ? '(none)' : typeof v === 'object' ? JSON.stringify(v) : String(v)).slice(0, 200);
+      if (ch.field === 'spfLookups') ctx.add(d, 'spf-lookups-increased', d.domain, `SPF lookups grew from ${ch.before} to ${ch.after} since the baseline${ch.after >= 8 ? ' (limit 10)' : ''}`, 'Check which include grew (providers change their records); update the baseline with --save-baseline once reviewed.');
+      else ctx.add(d, 'record-changed', d.domain, `${ch.field} changed since the baseline: ${show(ch.before)} -> ${show(ch.after)}`, 'If the change was intended, refresh the baseline with --save-baseline; otherwise investigate who changed DNS.');
+    }
   }
   return buildReport(results, opts, now, { resolver: resolver.kind === 'doh' ? `DoH ${resolver.url}` : resolver.kind === 'system' ? `system (${resolver.servers.join(', ')})` : resolver.kind, dnssec: dnssecResolver.url ? `DoH ${dnssecResolver.url}` : dnssecResolver.kind, checks: [...checks] });
 }
